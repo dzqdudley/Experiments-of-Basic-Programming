@@ -1,0 +1,299 @@
+DASH(1)                   BSD General Commands Manual                  DASH(1)
+
+NAME
+     dash — command interpreter (shell)
+
+SYNOPSIS
+     dash [-aCefnuvxIimqVEbp] [+aCefnuvxIimqVEbp] [-o option_name]
+          [+o option_name] [command_file [argument ...]]
+     dash -c [-aCefnuvxIimqVEbp] [+aCefnuvxIimqVEbp] [-o option_name]
+          [+o option_name] command_string [command_name [argument ...]]
+     dash -s [-aCefnuvxIimqVEbp] [+aCefnuvxIimqVEbp] [-o option_name]
+          [+o option_name] [argument ...]
+
+DESCRIPTION
+     dash is the standard command interpreter for the system.  The current
+     version of dash is in the process of being changed to conform with the
+     POSIX 1003.2 and 1003.2a specifications for the shell.  This version has
+     many features which make it appear similar in some respects to the Korn
+     shell, but it is not a Korn shell clone (see ksh(1)).  Only features des‐
+     ignated by POSIX, plus a few Berkeley extensions, are being incorporated
+     into this shell.  This man page is not intended to be a tutorial or a
+     complete specification of the shell.
+
+   Overview
+     The shell is a command that reads lines from either a file or the termi‐
+     nal, interprets them, and generally executes other commands.  It is the
+     program that is running when a user logs into the system (although a user
+     can select a different shell with the chsh(1) command).  The shell imple‐
+     ments a language that has flow control constructs, a macro facility that
+     provides a variety of features in addition to data storage, along with
+     built in history and line editing capabilities.  It incorporates many
+     features to aid interactive use and has the advantage that the interpre‐
+     tative language is common to both interactive and non-interactive use
+     (shell scripts).  That is, commands can be typed directly to the running
+     shell or can be put into a file and the file can be executed directly by
+     the shell.
+
+   Invocation
+     If no args are present and if the standard input of the shell is con‐
+     nected to a terminal (or if the -i flag is set), and the -c option is not
+     present, the shell is considered an interactive shell.  An interactive
+     shell generally prompts before each command and handles programming and
+     command errors differently (as described below).  When first starting,
+     the shell inspects argument 0, and if it begins with a dash ‘-’, the
+     shell is also considered a login shell.  This is normally done automati‐
+     cally by the system when the user first logs in.  A login shell first
+     reads commands from the files /etc/profile and .profile if they exist.
+     If the environment variable ENV is set on entry to an interactive shell,
+     or is set in the .profile of a login shell, the shell next reads commands
+     from the file named in ENV.  Therefore, a user should place commands that
+     are to be executed only at login time in the .profile file, and commands
+     that are executed for every interactive shell inside the ENV file.  To
+     set the ENV variable to some file, place the following line in your
+     .profile of your home directory
+
+           ENV=$HOME/.shinit; export ENV
+
+     substituting for “.shinit” any filename you wish.
+
+     If command line arguments besides the options have been specified, then
+     the shell treats the first argument as the name of a file from which to
+     read commands (a shell script), and the remaining arguments are set as
+     the positional parameters of the shell ($1, $2, etc).  Otherwise, the
+     shell reads commands from its standard input.
+
+   Argument List Processing
+     All of the single letter options that have a corresponding name can be
+     used as an argument to the -o option.  The set -o name is provided next
+     to the single letter option in the description below.  Specifying a dash
+     “-” turns the option on, while using a plus “+” disables the option.  The
+     following options can be set from the command line or with the set
+     builtin (described later).
+
+           -a allexport     Export all variables assigned to.
+
+           -c               Read commands from the command_string operand
+                            instead of from the standard input.  Special
+                            parameter 0 will be set from the command_name op‐
+                            erand and the positional parameters ($1, $2, etc.)
+                            set from the remaining argument operands.
+
+           -C noclobber     Don't overwrite existing files with “>”.
+
+           -e errexit       If not interactive, exit immediately if any
+                            untested command fails.  The exit status of a com‐
+                            mand is considered to be explicitly tested if the
+                            command is used to control an if, elif, while, or
+                            until; or if the command is the left hand operand
+                            of an “&&” or “||” operator.
+
+           -f noglob        Disable pathname expansion.
+
+           -n noexec        If not interactive, read commands but do not exe‐
+                            cute them.  This is useful for checking the syntax
+                            of shell scripts.
+
+           -u nounset       Write a message to standard error when attempting
+                            to expand a variable that is not set, and if the
+                            shell is not interactive, exit immediately.
+
+           -v verbose       The shell writes its input to standard error as it
+                            is read.  Useful for debugging.
+
+           -x xtrace        Write each command to standard error (preceded by
+                            a ‘+ ’) before it is executed.  Useful for debug‐
+                            ging.
+
+           -I ignoreeof     Ignore EOF's from input when interactive.
+
+   	   -i interactive   Force the shell to behave interactively.
+
+           -l               Make dash act as if it had been invoked as a login
+                            shell.
+
+           -m monitor       Turn on job control (set automatically when inter‐
+                            active).
+
+           -s stdin         Read commands from standard input (set automati‐
+                            cally if no file arguments are present).  This
+                            option has no effect when set after the shell has
+                            already started running (i.e. with set).
+
+           -V vi            Enable the built-in vi(1) command line editor
+                            (disables -E if it has been set).
+
+           -E emacs         Enable the built-in emacs(1) command line editor
+                            (disables -V if it has been set).
+
+           -b notify        Enable asynchronous notification of background job
+                            completion.  (UNIMPLEMENTED for 4.4alpha)
+
+           -p priv          Do not attempt to reset effective uid if it does
+                            not match uid. This is not set by default to help
+                            avoid incorrect usage by setuid root programs via
+                            system(3) or popen(3).
+
+   Lexical Structure
+
+ The shell reads input in terms of lines from a file and breaks it up into
+     words at whitespace (blanks and tabs), and at certain sequences of char‐
+     acters that are special to the shell called “operators”.  There are two
+     types of operators: control operators and redirection operators (their
+     meaning is discussed later).  Following is a list of operators:
+
+           Control operators:
+                 & && ( ) ; ;; | || <newline>
+
+           Redirection operators:
+                 < > >| << >> <& >& <<- <>
+
+   Quoting
+     Quoting is used to remove the special meaning of certain characters or
+     words to the shell, such as operators, whitespace, or keywords.  There
+     are three types of quoting: matched single quotes, matched double quotes,
+     and backslash.
+
+   Backslash
+     A backslash preserves the literal meaning of the following character,
+     with the exception of ⟨newline⟩.  A backslash preceding a ⟨newline⟩ is
+     treated as a line continuation.
+
+   Single Quotes
+     Enclosing characters in single quotes preserves the literal meaning of
+     all the characters (except single quotes, making it impossible to put
+     single-quotes in a single-quoted string).
+
+   Double Quotes
+     Enclosing characters within double quotes preserves the literal meaning
+     of all characters except dollarsign ($), backquote (`), and backslash
+     (\).  The backslash inside double quotes is historically weird, and
+
+           $ ` " \ <newline>.
+     Otherwise it remains literal.
+
+   Reserved Words
+     Reserved words are words that have special meaning to the shell and are
+     recognized at the beginning of a line and after a control operator.  The
+     following are reserved words:
+
+           !       elif    fi      while   case
+           else    for     then    {       }
+           do      done    until   if      esac
+
+     Their meaning is discussed later.
+
+   Aliases
+     An alias is a name and corresponding value set using the alias(1) builtin
+     command.  Whenever a reserved word may occur (see above), and after
+     checking for reserved words, the shell checks the word to see if it
+     matches an alias.  If it does, it replaces it in the input stream with
+     its value.  For example, if there is an alias called “lf” with the value
+     “ls -F”, then the input:
+
+           lf foobar ⟨return⟩
+
+     would become
+
+           ls -F foobar ⟨return⟩
+
+     Aliases provide a convenient way for naive users to create shorthands for
+     commands without having to learn how to create functions with arguments.
+     They can also be used to create lexically obscure code.  This use is dis‐
+     couraged.
+
+   Commands
+     The shell interprets the words it reads according to a language, the
+     specification of which is outside the scope of this man page (refer to
+     the BNF in the POSIX 1003.2 document).  Essentially though, a line is
+     read and if the first word of the line (or after a control operator) is
+     not a reserved word, then the shell has recognized a simple command.
+     Otherwise, a complex command or some other special construct may have
+     been recognized.
+
+   Simple Commands
+     If a simple command has been recognized, the shell performs the following
+     actions:
+
+           1.   Leading words of the form “name=value” are stripped off and
+                assigned to the environment of the simple command.  Redirect‐
+                ion operators and their arguments (as described below) are
+                stripped off and saved for processing.
+
+           2.   The remaining words are expanded as described in the section
+                called “Expansions”, and the first remaining word is consid‐
+                ered the command name and the command is located.  The remain‐
+                ing words are considered the arguments of the command.  If no
+                command name resulted, then the “name=value” variable assign‐
+                ments recognized in item 1 affect the current shell.
+
+           3.   Redirections are performed as described in the next section.
+
+   Redirections
+     Redirections are used to change where a command reads its input or sends
+     its output.  In general, redirections open, close, or duplicate an exist‐
+     ing reference to a file.  The overall format used for redirection is:
+
+           [n] redir-op file
+
+     where redir-op is one of the redirection operators mentioned previously.
+     Following is a list of the possible redirections.  The [n] is an optional
+     number, as in ‘3’ (not ‘[3]’), that refers to a file descriptor.
+
+           [n]> file   Redirect standard output (or n) to file.
+
+           [n]>| file  Same, but override the -C option.
+
+           [n]>> file  Append standard output (or n) to file.
+
+           [n]< file   Redirect standard input (or n) from file.
+
+           [n1]<&n2    Duplicate standard input (or n1) from file descriptor
+                       n2.
+
+           [n]<&-      Close standard input (or n).
+
+           [n1]>&n2    Duplicate standard output (or n1) to n2.
+
+           [n]>&-      Close standard output (or n).
+
+           [n]<> file  Open file for reading and writing on standard input (or
+                       n).
+
+     The following redirection is often called a “here-document”.
+
+           [n]<< delimiter
+                 here-doc-text ...
+           delimiter
+
+     All the text on successive lines up to the delimiter is saved away and
+     made available to the command on standard input, or file descriptor n if
+     it is specified.  If the delimiter as specified on the initial line is
+     quoted, then the here-doc-text is treated literally, otherwise the text
+     is subjected to parameter expansion, command substitution, and arithmetic
+     expansion (as described in the section on “Expansions”).  If the operator
+
+FILES
+     $HOME/.profile
+
+     /etc/profile
+
+SEE ALSO
+     csh(1), echo(1), getopt(1), ksh(1), login(1), printf(1), test(1),
+     getopt(3), passwd(5), environ(7), sysctl(8)
+
+HISTORY
+     dash is a POSIX-compliant implementation of /bin/sh that aims to be as
+     small as possible.  dash is a direct descendant of the NetBSD version of
+     ash (the Almquist SHell), ported to Linux in early 1997.  It was renamed
+     to dash in 2002.
+
+BUGS
+     Setuid shell scripts should be avoided at all costs, as they are a sig‐
+     nificant security risk.
+
+     PS1, PS2, and PS4 should be subject to parameter expansion before being
+     displayed.
+
+BSD                            January 19, 2003                            BSD
+(press q to quit)
